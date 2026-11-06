@@ -1,0 +1,110 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jungle_gaming
+      POSTGRES_USER: jungle
+      POSTGRES_PASSWORD: jungle_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jungle -d jungle_gaming"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - jungle-network
+
+  localstack:
+    image: localstack/localstack:3.5
+    environment:
+      SERVICES: sqs
+      DEBUG: "0"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_ENDPOINT_STRATEGY: path
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./docker/init-sqs.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    networks:
+      - jungle-network
+
+  test-db:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      PGHOST: postgres
+      PGUSER: jungle
+      PGPASSWORD: jungle_secret
+      PGDATABASE: jungle_gaming
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname='jungle_gaming_test'" | grep -q 1;
+        then createdb jungle_gaming_test; fi
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jungle-network
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    profiles: ["test"]
+    environment:
+      NODE_ENV: test
+      DATABASE_HOST: postgres
+      DATABASE_NAME: jungle_gaming_test
+      DATABASE_USER: jungle
+      DATABASE_PASSWORD: jungle_secret
+      SQS_ENDPOINT: http://localstack:4566
+      LOG_PRETTY: "false"
+      AUTH_ENABLED: "false"
+    depends_on:
+      test-db:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - jungle-network
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@jungle.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - jungle-network
+
+volumes:
+  postgres_data:
+  localstack_data:
+  pgadmin_data:
+
+networks:
+  jungle-network:
+    driver: bridge

@@ -1,0 +1,14 @@
+{
+    "gameId":  "jogo-1",
+    "playerId":  "0085de39-44d0-4d70-91d6-b31b2fa68ccb",
+    "kind":  "BET",
+    "externalTransactionId":  "5585c91b-b56b-423d-bb65-9f69c106e70b",
+    "roundId":  "rodada-1",
+    "walletId":  "2c8afd5e-83b9-42b2-90b5-0ad8cff88abc",
+    "money":  {
+                  "currency":  "BRL",
+                  "amount":  "10.00"
+              },
+    "idempotencyKey":  "8df531a5-76ce-41ed-a10d-69b27334988e",
+    "providerId":  "teste-local"
+}
